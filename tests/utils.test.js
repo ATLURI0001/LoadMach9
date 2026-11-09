@@ -1,0 +1,128 @@
+import { describe, it, beforeEach } from "node:test";
+import assert from "node:assert/strict";
+import { generateCode, getMaxId, resetCacheForTesting } from "../utils.js";
+
+describe("LoadMach9 Utility & Performance Harness", () => {
+  beforeEach(() => {
+    resetCacheForTesting();
+  });
+
+  describe("generateCode", () => {
+    it("should generate a string of exactly 500 characters", () => {
+      const code = generateCode();
+      assert.equal(typeof code, "string");
+      assert.equal(code.length, 500);
+    });
+
+    it("should only contain valid base64 character set", () => {
+      const code = generateCode();
+      const base64Regex = /^[A-Za-z0-9+/=]+$/;
+      assert.ok(base64Regex.test(code), "Generated code must match base64 character set");
+    });
+
+    it("should produce cryptographically distinct codes across invocations", () => {
+      const sampleSize = 100;
+      const seen = new Set();
+      for (let i = 0; i < sampleSize; i++) {
+        seen.add(generateCode());
+      }
+      assert.equal(seen.size, sampleSize, "All generated codes must be unique");
+    });
+
+    it("should sustain high-throughput generation without bottlenecks", () => {
+      const start = performance.now();
+      const iterations = 500;
+      for (let i = 0; i < iterations; i++) {
+        generateCode();
+      }
+      const durationMs = performance.now() - start;
+      assert.ok(durationMs < 500, `Generating ${iterations} codes took ${durationMs.toFixed(2)}ms, expected < 500ms`);
+    });
+  });
+
+  describe("getMaxId cache behavior", () => {
+    it("should return 0 when mock redis returns null and cache is empty", async () => {
+      const mockRedis = {
+        get: async () => null,
+      };
+      const result = await getMaxId(mockRedis, 500);
+      assert.equal(result, 0);
+    });
+
+    it("should fetch from mock redis and cache the parsed integer value", async () => {
+      let callCount = 0;
+      const mockRedis = {
+        get: async (key) => {
+          assert.equal(key, "codes:seq");
+          callCount++;
+          return "4294967295";
+        },
+      };
+
+      const first = await getMaxId(mockRedis, 500);
+      assert.equal(first, 4294967295);
+      assert.equal(callCount, 1);
+
+      // Subsequent call within TTL must return cached value without hitting Redis
+      const second = await getMaxId(mockRedis, 500);
+      assert.equal(second, 4294967295);
+      assert.equal(callCount, 1);
+    });
+
+    it("should refresh cache when TTL expires", async () => {
+      let value = "100";
+      let callCount = 0;
+      const mockRedis = {
+        get: async () => {
+          callCount++;
+          return value;
+        },
+      };
+
+      // Call with 10ms TTL
+      const first = await getMaxId(mockRedis, 10);
+      assert.equal(first, 100);
+      assert.equal(callCount, 1);
+
+      // Sleep 25ms to expire TTL
+      await new Promise((resolve) => setTimeout(resolve, 25));
+
+      value = "200";
+      const second = await getMaxId(mockRedis, 10);
+      assert.equal(second, 200);
+      assert.equal(callCount, 2);
+    });
+
+    it("should gracefully survive transient redis exceptions and retain cached value", async () => {
+      let callCount = 0;
+      const mockRedis = {
+        get: async () => {
+          callCount++;
+          if (callCount === 1) {
+            return "777";
+          }
+          throw new Error("ECONNREFUSED: Redis instance offline");
+        },
+      };
+
+      const first = await getMaxId(mockRedis, 10);
+      assert.equal(first, 777);
+
+      // Wait for TTL to expire
+      await new Promise((resolve) => setTimeout(resolve, 25));
+
+      // Second call fails at redis layer, but should catch and return last known cachedMaxId
+      const second = await getMaxId(mockRedis, 10);
+      assert.equal(second, 777);
+      assert.equal(callCount, 2);
+    });
+
+    it("should ignore non-numeric string values from redis without corrupting cache", async () => {
+      const mockRedis = {
+        get: async () => "invalid_non_numeric_token",
+      };
+      const result = await getMaxId(mockRedis, 500);
+      assert.equal(result, 0);
+    });
+  });
+});
