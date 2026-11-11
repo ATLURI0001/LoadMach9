@@ -8,6 +8,7 @@ const generateCode = () => {
 let cachedMaxId = 0;
 let lastCacheUpdate = 0;
 let defaultRedisClient = null;
+let inFlightFetch = null;
 
 async function getDefaultRedis() {
   if (!defaultRedisClient) {
@@ -21,34 +22,51 @@ async function getDefaultRedis() {
   return defaultRedisClient;
 }
 
-// Helper to get max ID with caching to improve performance and save Redis calls.
-// Only used in /code-fast GET endpoint.
+// Helper to get max ID with caching and singleflight coalescing to prevent
+// stampedes and avoid advancing the cache timestamp on failed lookups.
 async function getMaxId(client, ttlMs = 500) {
   const now = Date.now();
-  // Refresh only if cache is older than ttlMs
-  if (now - lastCacheUpdate > ttlMs) {
-    lastCacheUpdate = now;
-    const redisClient = client !== undefined ? client : await getDefaultRedis();
-    if (redisClient && typeof redisClient.get === "function") {
-      try {
+  const effectiveTtl = Number.isFinite(ttlMs) && ttlMs >= 0 ? ttlMs : 0;
+
+  if (lastCacheUpdate > 0 && now - lastCacheUpdate <= effectiveTtl) {
+    return cachedMaxId;
+  }
+
+  if (inFlightFetch) {
+    return inFlightFetch;
+  }
+
+  inFlightFetch = (async () => {
+    try {
+      const redisClient = client !== undefined ? client : await getDefaultRedis();
+      if (redisClient && typeof redisClient.get === "function") {
         const maxIdStr = await redisClient.get("codes:seq");
-        if (maxIdStr) {
-          const parsed = parseInt(maxIdStr, 10);
-          if (!isNaN(parsed)) {
-            cachedMaxId = parsed;
+        if (typeof maxIdStr === "string" || typeof maxIdStr === "number") {
+          const clean = String(maxIdStr).trim();
+          if (/^\d+$/.test(clean)) {
+            const parsed = Number.parseInt(clean, 10);
+            if (Number.isSafeInteger(parsed)) {
+              cachedMaxId = parsed;
+              lastCacheUpdate = Date.now();
+            }
           }
         }
-      } catch {
-        // Fall back to last known cachedMaxId on transient redis error
       }
+    } catch {
+      // Fall back to last known cachedMaxId on transient redis error
+    } finally {
+      inFlightFetch = null;
     }
-  }
-  return cachedMaxId;
+    return cachedMaxId;
+  })();
+
+  return inFlightFetch;
 }
 
 function resetCacheForTesting() {
   cachedMaxId = 0;
   lastCacheUpdate = 0;
+  inFlightFetch = null;
 }
 
 export { generateCode, getMaxId, resetCacheForTesting };

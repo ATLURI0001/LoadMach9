@@ -123,6 +123,47 @@ describe("LoadMach9 Utility & Performance Harness", () => {
       };
       const result = await getMaxId(mockRedis, 500);
       assert.equal(result, 0);
+
+      // Partial numeric prefix strings (parseInt trap) and negatives must also be rejected
+      const partialMock = { get: async () => "42_evil" };
+      assert.equal(await getMaxId(partialMock, 500), 0);
+      const negMock = { get: async () => "-10" };
+      assert.equal(await getMaxId(negMock, 500), 0);
+    });
+
+    it("should coalesce concurrent cache-miss fetches into one redis call", async () => {
+      let calls = 0;
+      const slowRedis = {
+        get: async () => {
+          calls++;
+          await new Promise((r) => setTimeout(r, 20));
+          return "999";
+        },
+      };
+
+      const results = await Promise.all([
+        getMaxId(slowRedis, 500),
+        getMaxId(slowRedis, 500),
+        getMaxId(slowRedis, 500),
+      ]);
+      assert.deepEqual(results, [999, 999, 999]);
+      assert.equal(calls, 1);
+    });
+
+    it("should retry immediately after a transient failure rather than locking stale TTL", async () => {
+      let attempts = 0;
+      const flakyRedis = {
+        get: async () => {
+          attempts++;
+          if (attempts === 1) throw new Error("timeout");
+          return "123";
+        },
+      };
+
+      assert.equal(await getMaxId(flakyRedis, 5000), 0);
+      // Even within 5000ms TTL, second call should recover immediately instead of caching failure
+      assert.equal(await getMaxId(flakyRedis, 5000), 123);
+      assert.equal(attempts, 2);
     });
   });
 });
