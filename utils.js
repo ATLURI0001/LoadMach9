@@ -26,9 +26,14 @@ async function getDefaultRedis() {
 // stampedes and avoid advancing the cache timestamp on failed lookups.
 async function getMaxId(client, ttlMs = 500) {
   const now = Date.now();
-  const effectiveTtl = Number.isFinite(ttlMs) && ttlMs >= 0 ? ttlMs : 0;
+  const effectiveTtl = Number.isFinite(ttlMs) && ttlMs > 0 ? ttlMs : 0;
 
-  if (lastCacheUpdate > 0 && now - lastCacheUpdate <= effectiveTtl) {
+  if (
+    effectiveTtl > 0 &&
+    lastCacheUpdate > 0 &&
+    now >= lastCacheUpdate &&
+    now - lastCacheUpdate < effectiveTtl
+  ) {
     return cachedMaxId;
   }
 
