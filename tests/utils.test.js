@@ -165,5 +165,42 @@ describe("LoadMach9 Utility & Performance Harness", () => {
       assert.equal(await getMaxId(flakyRedis, 5000), 123);
       assert.equal(attempts, 2);
     });
+
+    it("should bypass cache immediately when ttlMs is 0 even in same millisecond", async () => {
+      let seq = 10;
+      let calls = 0;
+      const client = {
+        get: async () => {
+          calls++;
+          return String(seq);
+        },
+      };
+
+      assert.equal(await getMaxId(client, 500), 10);
+      seq = 20;
+      assert.equal(await getMaxId(client, 0), 20);
+      assert.equal(calls, 2);
+    });
+
+    it("should refresh cache if system clock moves backward relative to lastCacheUpdate", async () => {
+      let calls = 0;
+      const realNow = Date.now;
+      let fakeNow = 10_000;
+      Date.now = () => fakeNow;
+      try {
+        const client = {
+          get: async () => {
+            calls++;
+            return String(calls * 50);
+          },
+        };
+        assert.equal(await getMaxId(client, 500), 50);
+        fakeNow = 9_000; // clock jumped backward 1s
+        assert.equal(await getMaxId(client, 500), 100);
+        assert.equal(calls, 2);
+      } finally {
+        Date.now = realNow;
+      }
+    });
   });
 });
