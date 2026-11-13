@@ -38,6 +38,19 @@ describe("LoadMach9 Utility & Performance Harness", () => {
       const durationMs = performance.now() - start;
       assert.ok(durationMs < 500, `Generating ${iterations} codes took ${durationMs.toFixed(2)}ms, expected < 500ms`);
     });
+
+    it("should support custom lengths when specified and fallback safely on invalid input", () => {
+      assert.equal(generateCode(100).length, 100);
+      assert.equal(generateCode(64).length, 64);
+      assert.equal(generateCode(1).length, 1);
+
+      // Non-positive or non-integer inputs safely default to 500
+      assert.equal(generateCode(0).length, 500);
+      assert.equal(generateCode(-50).length, 500);
+      assert.equal(generateCode(NaN).length, 500);
+      assert.equal(generateCode(null).length, 500);
+      assert.equal(generateCode("not a number").length, 500);
+    });
   });
 
   describe("getMaxId cache behavior", () => {

@@ -1,8 +1,9 @@
 import crypto from "crypto";
 
-const generateCode = () => {
-  // 375 random bytes becomes 500 Base64 characters
-  return crypto.randomBytes(375).toString("base64").substring(0, 500);
+const generateCode = (length = 500) => {
+  const len = Number.isSafeInteger(length) && length > 0 ? length : 500;
+  const numBytes = Math.ceil((len * 3) / 4);
+  return crypto.randomBytes(numBytes).toString("base64").substring(0, len);
 };
 
 let cachedMaxId = 0;
