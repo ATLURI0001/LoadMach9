@@ -6,6 +6,37 @@ const generateCode = (length = 500) => {
   return crypto.randomBytes(numBytes).toString("base64").substring(0, len);
 };
 
+const generateBatchCodes = (count = 10, length = 500) => {
+  const safeCount = Number.isSafeInteger(count) && count > 0 ? Math.min(count, 10000) : 10;
+  const codes = new Array(safeCount);
+  for (let i = 0; i < safeCount; i++) {
+    codes[i] = generateCode(length);
+  }
+  return codes;
+};
+
+const parsePositiveInteger = (val, fallback = 0) => {
+  if (typeof val === "number" && Number.isSafeInteger(val) && val >= 0) {
+    return val;
+  }
+  if (typeof val === "string") {
+    const clean = val.trim();
+    if (/^\d+$/.test(clean)) {
+      const parsed = Number.parseInt(clean, 10);
+      if (Number.isSafeInteger(parsed)) return parsed;
+    }
+  }
+  return Number.isSafeInteger(fallback) && fallback >= 0 ? fallback : 0;
+};
+
+const formatBytes = (bytes) => {
+  if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  const val = bytes / Math.pow(1024, i);
+  return `${i === 0 ? val : val.toFixed(2)} ${units[i]}`;
+};
+
 let cachedMaxId = 0;
 let lastCacheUpdate = 0;
 let defaultRedisClient = null;
@@ -75,4 +106,11 @@ function resetCacheForTesting() {
   inFlightFetch = null;
 }
 
-export { generateCode, getMaxId, resetCacheForTesting };
+export {
+  generateCode,
+  generateBatchCodes,
+  parsePositiveInteger,
+  formatBytes,
+  getMaxId,
+  resetCacheForTesting,
+};

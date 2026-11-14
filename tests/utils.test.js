@@ -1,6 +1,13 @@
 import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { generateCode, getMaxId, resetCacheForTesting } from "../utils.js";
+import {
+  generateCode,
+  generateBatchCodes,
+  parsePositiveInteger,
+  formatBytes,
+  getMaxId,
+  resetCacheForTesting,
+} from "../utils.js";
 
 describe("LoadMach9 Utility & Performance Harness", () => {
   beforeEach(() => {
@@ -214,6 +221,49 @@ describe("LoadMach9 Utility & Performance Harness", () => {
       } finally {
         Date.now = realNow;
       }
+    });
+  });
+
+  describe("generateBatchCodes", () => {
+    it("should generate the requested count of unique codes", () => {
+      const batch = generateBatchCodes(5, 50);
+      assert.equal(batch.length, 5);
+      batch.forEach((code) => assert.equal(code.length, 50));
+      const set = new Set(batch);
+      assert.equal(set.size, 5);
+    });
+
+    it("should safely default on non-positive or invalid counts", () => {
+      assert.equal(generateBatchCodes(0).length, 10);
+      assert.equal(generateBatchCodes(-5).length, 10);
+      assert.equal(generateBatchCodes("invalid").length, 10);
+      assert.equal(generateBatchCodes(20000).length, 10000); // capped at 10k
+    });
+  });
+
+  describe("parsePositiveInteger", () => {
+    it("should parse valid numbers and numeric strings", () => {
+      assert.equal(parsePositiveInteger(42), 42);
+      assert.equal(parsePositiveInteger(" 100 "), 100);
+      assert.equal(parsePositiveInteger(0), 0);
+    });
+
+    it("should return fallback on invalid or negative inputs", () => {
+      assert.equal(parsePositiveInteger(-5, 0), 0);
+      assert.equal(parsePositiveInteger("abc", 10), 10);
+      assert.equal(parsePositiveInteger(null, 5), 5);
+      assert.equal(parsePositiveInteger(NaN, 1), 1);
+    });
+  });
+
+  describe("formatBytes", () => {
+    it("should format bytes across scaling units", () => {
+      assert.equal(formatBytes(0), "0 B");
+      assert.equal(formatBytes(-100), "0 B");
+      assert.equal(formatBytes(500), "500 B");
+      assert.equal(formatBytes(1024), "1.00 KB");
+      assert.equal(formatBytes(1024 * 1024), "1.00 MB");
+      assert.equal(formatBytes(1024 * 1024 * 1024), "1.00 GB");
     });
   });
 });
