@@ -37,6 +37,42 @@ const formatBytes = (bytes) => {
   return `${i === 0 ? val : val.toFixed(2)} ${units[i]}`;
 };
 
+const computePercentiles = (values, percentiles = [50, 90, 95, 99]) => {
+  if (!Array.isArray(values) || values.length === 0) return {};
+  const valid = values.filter((v) => typeof v === "number" && Number.isFinite(v) && v >= 0);
+  if (valid.length === 0) return {};
+  valid.sort((a, b) => a - b);
+
+  const result = {};
+  for (const p of percentiles) {
+    if (!Number.isFinite(p) || p < 0 || p > 100) continue;
+    const rank = Math.max(0, Math.min(valid.length - 1, Math.ceil((p / 100) * valid.length) - 1));
+    result[`p${p}`] = valid[rank];
+  }
+  return result;
+};
+
+const parseDurationMs = (str, fallback = 1000) => {
+  const safeFallback = Number.isSafeInteger(fallback) && fallback >= 0 ? fallback : 1000;
+  if (typeof str === "number" && Number.isFinite(str) && str >= 0) {
+    return Math.floor(str);
+  }
+  if (typeof str !== "string") return safeFallback;
+  const match = str.trim().toLowerCase().match(/^(\d+(?:\.\d+)?)\s*(ms|s|m|h)?$/);
+  if (!match) return safeFallback;
+  const val = Number.parseFloat(match[1]);
+  if (!Number.isFinite(val) || val < 0) return safeFallback;
+  const unit = match[2] || "ms";
+  switch (unit) {
+    case "h": return Math.floor(val * 3600000);
+    case "m": return Math.floor(val * 60000);
+    case "s": return Math.floor(val * 1000);
+    case "ms":
+    default:
+      return Math.floor(val);
+  }
+};
+
 let cachedMaxId = 0;
 let lastCacheUpdate = 0;
 let defaultRedisClient = null;
@@ -111,6 +147,8 @@ export {
   generateBatchCodes,
   parsePositiveInteger,
   formatBytes,
+  computePercentiles,
+  parseDurationMs,
   getMaxId,
   resetCacheForTesting,
 };

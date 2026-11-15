@@ -5,6 +5,8 @@ import {
   generateBatchCodes,
   parsePositiveInteger,
   formatBytes,
+  computePercentiles,
+  parseDurationMs,
   getMaxId,
   resetCacheForTesting,
 } from "../utils.js";
@@ -264,6 +266,40 @@ describe("LoadMach9 Utility & Performance Harness", () => {
       assert.equal(formatBytes(1024), "1.00 KB");
       assert.equal(formatBytes(1024 * 1024), "1.00 MB");
       assert.equal(formatBytes(1024 * 1024 * 1024), "1.00 GB");
+    });
+  });
+
+  describe("computePercentiles", () => {
+    it("should accurately compute p50, p90, p95, p99 from latency values", () => {
+      const data = Array.from({ length: 100 }, (_, i) => i + 1); // 1..100
+      const res = computePercentiles(data);
+      assert.equal(res.p50, 50);
+      assert.equal(res.p90, 90);
+      assert.equal(res.p95, 95);
+      assert.equal(res.p99, 99);
+    });
+
+    it("should return empty object on empty or non-array inputs", () => {
+      assert.deepEqual(computePercentiles([]), {});
+      assert.deepEqual(computePercentiles(null), {});
+      assert.deepEqual(computePercentiles([NaN, -1, "invalid"]), {});
+    });
+  });
+
+  describe("parseDurationMs", () => {
+    it("should parse duration strings with units", () => {
+      assert.equal(parseDurationMs("500ms"), 500);
+      assert.equal(parseDurationMs("2s"), 2000);
+      assert.equal(parseDurationMs("1.5s"), 1500);
+      assert.equal(parseDurationMs("1m"), 60000);
+      assert.equal(parseDurationMs("2h"), 7200000);
+      assert.equal(parseDurationMs(250), 250);
+    });
+
+    it("should fallback on invalid input", () => {
+      assert.equal(parseDurationMs("invalid", 1000), 1000);
+      assert.equal(parseDurationMs(-50, 500), 500);
+      assert.equal(parseDurationMs(null, 200), 200);
     });
   });
 });
