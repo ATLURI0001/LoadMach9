@@ -23,6 +23,7 @@ import {
   computeMemoryDelta,
   generateAutocannonConfig,
   calculateRpsZScore,
+  formatBenchmarkSummaryTable,
   getMaxId,
   resetCacheForTesting,
 } from "../utils.js";
@@ -585,6 +586,22 @@ describe("LoadMach9 Utility & Performance Harness", () => {
       const baseline = [1000, 1020, 990, 1010, 1005];
       const res = calculateRpsZScore(baseline, 1015);
       assert.equal(res.anomaly, false);
+    });
+  });
+
+  describe("formatBenchmarkSummaryTable", () => {
+    it("should format benchmark records into a markdown table", () => {
+      const records = [
+        { name: "Express", rps: 15400, p99: 12.5, errors: 0 },
+        { name: "Fastify", rps: 34200, p99: 5.2, errors: 0 },
+      ];
+      const md = formatBenchmarkSummaryTable(records);
+      assert.ok(md.includes("| Express | 15400 | 12.5ms | 0 |"));
+      assert.ok(md.includes("| Fastify | 34200 | 5.2ms | 0 |"));
+    });
+    it("should provide fallback table when records are empty", () => {
+      const md = formatBenchmarkSummaryTable([]);
+      assert.ok(md.includes("| N/A | 0 | 0ms | 0 |"));
     });
   });
 });

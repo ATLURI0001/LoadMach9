@@ -491,6 +491,21 @@ const calculateRpsZScore = (samples, currentRps) => {
     anomaly: Math.abs(zScore) >= 2,
   };
 };
+
+const formatBenchmarkSummaryTable = (records) => {
+  if (!Array.isArray(records) || records.length === 0) {
+    return "| Framework | Requests/sec | Latency p99 | Errors |\n| :--- | :--- | :--- | :--- |\n| N/A | 0 | 0ms | 0 |";
+  }
+  const headers = "| Framework | Requests/sec | Latency p99 | Errors |\n| :--- | :--- | :--- | :--- |";
+  const rows = records.map((r) => {
+    const name = r.name ?? "Unknown";
+    const rps = r.rps ?? 0;
+    const p99 = r.p99 ? r.p99 + "ms" : "0ms";
+    const errors = r.errors ?? 0;
+    return "| " + name + " | " + rps + " | " + p99 + " | " + errors + " |";
+  });
+  return [headers, ...rows].join("\n");
+};
 export {
   generateCode,
   generateBatchCodes,
@@ -514,6 +529,7 @@ export {
   computeMemoryDelta,
   generateAutocannonConfig,
   calculateRpsZScore,
+  formatBenchmarkSummaryTable,
   getMaxId,
   resetCacheForTesting,
 };
