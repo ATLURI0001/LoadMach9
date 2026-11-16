@@ -402,6 +402,40 @@ const evaluateSloCompliance = (latencies, opts = {}) => {
     violations,
   };
 };
+
+const simulateLruHitRatio = (accessSequence, capacity = 100) => {
+  if (!Array.isArray(accessSequence) || accessSequence.length === 0) {
+    return { total: 0, hits: 0, misses: 0, hitRatio: 0, evictions: 0 };
+  }
+  const cap = Number.isSafeInteger(capacity) && capacity > 0 ? capacity : 100;
+  const cache = new Set();
+  let hits = 0;
+  let misses = 0;
+  let evictions = 0;
+  for (const item of accessSequence) {
+    if (cache.has(item)) {
+      hits++;
+      cache.delete(item);
+      cache.add(item);
+    } else {
+      misses++;
+      if (cache.size >= cap) {
+        const oldest = cache.values().next().value;
+        cache.delete(oldest);
+        evictions++;
+      }
+      cache.add(item);
+    }
+  }
+  const total = accessSequence.length;
+  return {
+    total,
+    hits,
+    misses,
+    evictions,
+    hitRatio: Number((hits / total).toFixed(4)),
+  };
+};
 export {
   generateCode,
   generateBatchCodes,
@@ -421,6 +455,7 @@ export {
   generateBackoffSchedule,
   validatePayloadSize,
   evaluateSloCompliance,
+  simulateLruHitRatio,
   getMaxId,
   resetCacheForTesting,
 };
