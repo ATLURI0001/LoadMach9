@@ -134,6 +134,112 @@ const sanitizeRedisKey = (key, defaultKey = "codes:seq") => {
   return clean.substring(0, 256);
 };
 
+const DEFAULT_HISTOGRAM_BUCKETS = Object.freeze([1, 5, 10, 25, 50, 100, 250, 500, 1000]);
+
+const buildLatencyHistogram = (latencies, customBuckets) => {
+  if (!Array.isArray(latencies) || latencies.length === 0) {
+    return {
+      total: 0,
+      buckets: {},
+      overflow: 0,
+    };
+  }
+  const valid = latencies.filter((v) => typeof v === "number" && Number.isFinite(v) && v >= 0);
+  if (valid.length === 0) {
+    return {
+      total: 0,
+      buckets: {},
+      overflow: 0,
+    };
+  }
+
+  let buckets = DEFAULT_HISTOGRAM_BUCKETS;
+  if (Array.isArray(customBuckets) && customBuckets.length > 0) {
+    const candidate = customBuckets.filter((b) => typeof b === "number" && Number.isFinite(b) && b > 0);
+    if (candidate.length > 0) {
+      buckets = Array.from(new Set(candidate)).sort((a, b) => a - b);
+    }
+  }
+
+  const counts = {};
+  for (const b of buckets) {
+    counts[`le_${b}`] = 0;
+  }
+  let overflow = 0;
+
+  for (const lat of valid) {
+    let matched = false;
+    for (const b of buckets) {
+      if (lat <= b) {
+        counts[`le_${b}`]++;
+        matched = true;
+      }
+    }
+    if (!matched) {
+      overflow++;
+    }
+  }
+
+  return {
+    total: valid.length,
+    buckets: counts,
+    overflow,
+  };
+};
+
+const computeJitter = (latencies) => {
+  if (!Array.isArray(latencies) || latencies.length === 0) {
+    return {
+      count: 0,
+      meanJitter: 0,
+      maxJitter: 0,
+      variance: 0,
+      stdDev: 0,
+    };
+  }
+  const valid = latencies.filter((v) => typeof v === "number" && Number.isFinite(v) && v >= 0);
+  if (valid.length <= 1) {
+    return {
+      count: valid.length,
+      meanJitter: 0,
+      maxJitter: 0,
+      variance: 0,
+      stdDev: 0,
+    };
+  }
+
+  let totalDiff = 0;
+  let maxDiff = 0;
+  let sum = valid[0];
+
+  for (let i = 1; i < valid.length; i++) {
+    const diff = Math.abs(valid[i] - valid[i - 1]);
+    totalDiff += diff;
+    if (diff > maxDiff) maxDiff = diff;
+    sum += valid[i];
+  }
+
+  const meanJitter = Number((totalDiff / (valid.length - 1)).toFixed(2));
+  const maxJitter = Number(maxDiff.toFixed(2));
+  const mean = sum / valid.length;
+
+  let sumSquares = 0;
+  for (let i = 0; i < valid.length; i++) {
+    const delta = valid[i] - mean;
+    sumSquares += delta * delta;
+  }
+  const variance = Number((sumSquares / valid.length).toFixed(2));
+  const stdDev = Number(Math.sqrt(variance).toFixed(2));
+
+  return {
+    count: valid.length,
+    meanJitter,
+    maxJitter,
+    variance,
+    stdDev,
+  };
+};
+
 let cachedMaxId = 0;
 let lastCacheUpdate = 0;
 let defaultRedisClient = null;
@@ -213,6 +319,9 @@ export {
   calculateRps,
   computeThroughputStats,
   sanitizeRedisKey,
+  DEFAULT_HISTOGRAM_BUCKETS,
+  buildLatencyHistogram,
+  computeJitter,
   getMaxId,
   resetCacheForTesting,
 };

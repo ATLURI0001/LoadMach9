@@ -10,6 +10,9 @@ import {
   calculateRps,
   computeThroughputStats,
   sanitizeRedisKey,
+  DEFAULT_HISTOGRAM_BUCKETS,
+  buildLatencyHistogram,
+  computeJitter,
   getMaxId,
   resetCacheForTesting,
 } from "../utils.js";
@@ -378,6 +381,58 @@ describe("LoadMach9 Utility & Performance Harness", () => {
       assert.equal(sanitizeRedisKey(null), "codes:seq");
       assert.equal(sanitizeRedisKey(12345), "codes:seq");
       assert.equal(sanitizeRedisKey("", "default:key"), "default:key");
+    });
+  });
+
+  describe("buildLatencyHistogram", () => {
+    it("should compute default cumulative buckets and overflow accurately", () => {
+      const latencies = [0.5, 2, 4.5, 12, 100, 1500];
+      const result = buildLatencyHistogram(latencies);
+      assert.equal(result.total, 6);
+      assert.equal(result.overflow, 1);
+      assert.equal(result.buckets.le_1, 1);
+      assert.equal(result.buckets.le_5, 3);
+      assert.equal(result.buckets.le_10, 3);
+      assert.equal(result.buckets.le_25, 4);
+      assert.equal(result.buckets.le_50, 4);
+      assert.equal(result.buckets.le_100, 5);
+      assert.equal(result.buckets.le_250, 5);
+      assert.equal(result.buckets.le_500, 5);
+      assert.equal(result.buckets.le_1000, 5);
+    });
+
+    it("should support custom sorted and deduplicated bucket boundaries", () => {
+      const latencies = [5, 15, 25, 35];
+      const result = buildLatencyHistogram(latencies, [20, 10, 20, 30]);
+      assert.equal(result.total, 4);
+      assert.equal(result.overflow, 1);
+      assert.equal(result.buckets.le_10, 1);
+      assert.equal(result.buckets.le_20, 2);
+      assert.equal(result.buckets.le_30, 3);
+    });
+
+    it("should handle empty or invalid inputs gracefully", () => {
+      assert.deepEqual(buildLatencyHistogram([]), { total: 0, buckets: {}, overflow: 0 });
+      assert.deepEqual(buildLatencyHistogram(null), { total: 0, buckets: {}, overflow: 0 });
+      assert.deepEqual(buildLatencyHistogram([-5, NaN, "bad"]), { total: 0, buckets: {}, overflow: 0 });
+    });
+  });
+
+  describe("computeJitter", () => {
+    it("should compute mean jitter, max jitter, variance, and standard deviation accurately", () => {
+      const latencies = [10, 12, 8, 15, 9];
+      const result = computeJitter(latencies);
+      assert.equal(result.count, 5);
+      assert.equal(result.meanJitter, 4.75);
+      assert.equal(result.maxJitter, 7);
+      assert.equal(result.variance, 6.16);
+      assert.equal(result.stdDev, 2.48);
+    });
+
+    it("should handle edge case counts <= 1 safely", () => {
+      assert.deepEqual(computeJitter([]), { count: 0, meanJitter: 0, maxJitter: 0, variance: 0, stdDev: 0 });
+      assert.deepEqual(computeJitter([42]), { count: 1, meanJitter: 0, maxJitter: 0, variance: 0, stdDev: 0 });
+      assert.deepEqual(computeJitter(null), { count: 0, meanJitter: 0, maxJitter: 0, variance: 0, stdDev: 0 });
     });
   });
 });
