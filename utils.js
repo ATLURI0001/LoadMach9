@@ -454,6 +454,24 @@ const computeMemoryDelta = (initialUsage = {}, finalUsage = {}, warningThreshold
     formattedHeapDelta: formatBytes(Math.abs(heapDelta)),
   };
 };
+
+const generateAutocannonConfig = (opts = {}) => {
+  const o = opts && typeof opts === "object" ? opts : {};
+  if (!o.url || typeof o.url !== "string") {
+    throw new Error("Target URL is required for autocannon benchmark");
+  }
+  const conn = Number.isSafeInteger(o.connections) && o.connections > 0 ? o.connections : 10;
+  const dur = Number.isSafeInteger(o.duration) && o.duration > 0 ? o.duration : 10;
+  const pipe = Number.isSafeInteger(o.pipelining) && o.pipelining > 0 ? o.pipelining : 1;
+  return {
+    url: o.url.trim(),
+    connections: conn,
+    duration: dur,
+    pipelining: pipe,
+    timeout: 10,
+    headers: { "Content-Type": "application/json" },
+  };
+};
 export {
   generateCode,
   generateBatchCodes,
@@ -475,6 +493,7 @@ export {
   evaluateSloCompliance,
   simulateLruHitRatio,
   computeMemoryDelta,
+  generateAutocannonConfig,
   getMaxId,
   resetCacheForTesting,
 };

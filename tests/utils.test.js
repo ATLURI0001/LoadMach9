@@ -21,6 +21,7 @@ import {
   evaluateSloCompliance,
   simulateLruHitRatio,
   computeMemoryDelta,
+  generateAutocannonConfig,
   getMaxId,
   resetCacheForTesting,
 } from "../utils.js";
@@ -556,6 +557,19 @@ describe("LoadMach9 Utility & Performance Harness", () => {
     it("should flag heap growth warning when delta exceeds threshold", () => {
       const delta = computeMemoryDelta({ heapUsed: 1000 }, { heapUsed: 5000 }, 2000);
       assert.equal(delta.heapGrowthExceeded, true);
+    });
+  });
+
+  describe("generateAutocannonConfig", () => {
+    it("should construct valid autocannon options", () => {
+      const cfg = generateAutocannonConfig({ url: "http://localhost:3000", connections: 50, duration: 20 });
+      assert.equal(cfg.url, "http://localhost:3000");
+      assert.equal(cfg.connections, 50);
+      assert.equal(cfg.duration, 20);
+      assert.equal(cfg.pipelining, 1);
+    });
+    it("should throw error if url is missing", () => {
+      assert.throws(() => generateAutocannonConfig({}), /Target URL is required/);
     });
   });
 });
