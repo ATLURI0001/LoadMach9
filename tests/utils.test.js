@@ -7,6 +7,9 @@ import {
   formatBytes,
   computePercentiles,
   parseDurationMs,
+  calculateRps,
+  computeThroughputStats,
+  sanitizeRedisKey,
   getMaxId,
   resetCacheForTesting,
 } from "../utils.js";
@@ -300,6 +303,81 @@ describe("LoadMach9 Utility & Performance Harness", () => {
       assert.equal(parseDurationMs("invalid", 1000), 1000);
       assert.equal(parseDurationMs(-50, 500), 500);
       assert.equal(parseDurationMs(null, 200), 200);
+    });
+  });
+
+  describe("calculateRps", () => {
+    it("should accurately compute requests per second", () => {
+      assert.equal(calculateRps(1000, 1000), 1000);
+      assert.equal(calculateRps(500, 2000), 250);
+      assert.equal(calculateRps(150, 500), 300);
+      assert.equal(calculateRps(1, 1000), 1);
+    });
+
+    it("should safely return 0 on invalid or non-positive parameters", () => {
+      assert.equal(calculateRps(0, 1000), 0);
+      assert.equal(calculateRps(100, 0), 0);
+      assert.equal(calculateRps(-10, 1000), 0);
+      assert.equal(calculateRps(100, -500), 0);
+      assert.equal(calculateRps(NaN, 1000), 0);
+      assert.equal(calculateRps(100, null), 0);
+    });
+  });
+
+  describe("computeThroughputStats", () => {
+    it("should compute comprehensive throughput and latency stats", () => {
+      const latencies = [10, 20, 30, 40, 50];
+      const stats = computeThroughputStats(latencies, 1000);
+      assert.equal(stats.totalRequests, 5);
+      assert.equal(stats.rps, 5);
+      assert.equal(stats.min, 10);
+      assert.equal(stats.max, 50);
+      assert.equal(stats.mean, 30);
+      assert.equal(stats.percentiles.p50, 30);
+      assert.equal(stats.percentiles.p90, 50);
+    });
+
+    it("should safely handle empty or non-array inputs", () => {
+      assert.deepEqual(computeThroughputStats([]), {
+        totalRequests: 0,
+        rps: 0,
+        min: 0,
+        max: 0,
+        mean: 0,
+        percentiles: {},
+      });
+      assert.deepEqual(computeThroughputStats(null), {
+        totalRequests: 0,
+        rps: 0,
+        min: 0,
+        max: 0,
+        mean: 0,
+        percentiles: {},
+      });
+      assert.deepEqual(computeThroughputStats([-10, NaN, "bad"]), {
+        totalRequests: 0,
+        rps: 0,
+        min: 0,
+        max: 0,
+        mean: 0,
+        percentiles: {},
+      });
+    });
+  });
+
+  describe("sanitizeRedisKey", () => {
+    it("should clean whitespace and control characters from Redis keys", () => {
+      assert.equal(sanitizeRedisKey("codes:seq"), "codes:seq");
+      assert.equal(sanitizeRedisKey("  user  session  cache  "), "user:session:cache");
+      assert.equal(sanitizeRedisKey("key\r\nwith\x00ctrl"), "keywithctrl");
+    });
+
+    it("should fallback on empty or non-string input", () => {
+      assert.equal(sanitizeRedisKey(""), "codes:seq");
+      assert.equal(sanitizeRedisKey("   "), "codes:seq");
+      assert.equal(sanitizeRedisKey(null), "codes:seq");
+      assert.equal(sanitizeRedisKey(12345), "codes:seq");
+      assert.equal(sanitizeRedisKey("", "default:key"), "default:key");
     });
   });
 });
