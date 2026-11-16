@@ -22,6 +22,7 @@ import {
   simulateLruHitRatio,
   computeMemoryDelta,
   generateAutocannonConfig,
+  calculateRpsZScore,
   getMaxId,
   resetCacheForTesting,
 } from "../utils.js";
@@ -570,6 +571,20 @@ describe("LoadMach9 Utility & Performance Harness", () => {
     });
     it("should throw error if url is missing", () => {
       assert.throws(() => generateAutocannonConfig({}), /Target URL is required/);
+    });
+  });
+
+  describe("calculateRpsZScore", () => {
+    it("should compute accurate z-score and detect throughput drop", () => {
+      const baseline = [1000, 1020, 990, 1010, 1005];
+      const res = calculateRpsZScore(baseline, 600);
+      assert.ok(res.zScore < -2);
+      assert.equal(res.anomaly, true);
+    });
+    it("should return anomaly false for values within 2 standard deviations", () => {
+      const baseline = [1000, 1020, 990, 1010, 1005];
+      const res = calculateRpsZScore(baseline, 1015);
+      assert.equal(res.anomaly, false);
     });
   });
 });
