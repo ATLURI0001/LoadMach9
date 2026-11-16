@@ -380,6 +380,28 @@ const validatePayloadSize = (contentLength, maxSizeBytes = 1048576) => {
   }
   return { valid: true, bytes: len, maxBytes: max, error: null };
 };
+
+const evaluateSloCompliance = (latencies, opts = {}) => {
+  const o = opts && typeof opts === "object" ? opts : {};
+  const targetP95Ms = o.targetP95Ms ?? 50;
+  const targetP99Ms = o.targetP99Ms ?? 100;
+  if (!Array.isArray(latencies) || latencies.length === 0) {
+    return { compliant: false, total: 0, p95: 0, p99: 0, violations: [] };
+  }
+  const percentiles = computePercentiles(latencies, [95, 99]);
+  const p95 = percentiles.p95 ?? 0;
+  const p99 = percentiles.p99 ?? 0;
+  const violations = [];
+  if (p95 > targetP95Ms) violations.push("p95 exceeded: " + p95 + "ms > " + targetP95Ms + "ms");
+  if (p99 > targetP99Ms) violations.push("p99 exceeded: " + p99 + "ms > " + targetP99Ms + "ms");
+  return {
+    compliant: violations.length === 0,
+    total: latencies.length,
+    p95,
+    p99,
+    violations,
+  };
+};
 export {
   generateCode,
   generateBatchCodes,
@@ -398,6 +420,7 @@ export {
   computeEMA,
   generateBackoffSchedule,
   validatePayloadSize,
+  evaluateSloCompliance,
   getMaxId,
   resetCacheForTesting,
 };

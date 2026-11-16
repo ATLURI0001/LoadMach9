@@ -18,6 +18,7 @@ import {
   computeEMA,
   generateBackoffSchedule,
   validatePayloadSize,
+  evaluateSloCompliance,
   getMaxId,
   resetCacheForTesting,
 } from "../utils.js";
@@ -507,6 +508,21 @@ describe("LoadMach9 Utility & Performance Harness", () => {
     it("should reject negative or unparseable inputs", () => {
       assert.equal(validatePayloadSize(-50).valid, false);
       assert.equal(validatePayloadSize("abc").error, "INVALID_LENGTH");
+    });
+  });
+
+  describe("evaluateSloCompliance", () => {
+    it("should pass compliance when latencies meet targets", () => {
+      const latencies = Array(100).fill(10);
+      const res = evaluateSloCompliance(latencies, { targetP95Ms: 20, targetP99Ms: 30 });
+      assert.equal(res.compliant, true);
+      assert.equal(res.violations.length, 0);
+    });
+    it("should detect SLA breaches when percentiles overshoot targets", () => {
+      const latencies = [...Array(95).fill(10), ...Array(5).fill(250)];
+      const res = evaluateSloCompliance(latencies, { targetP95Ms: 50, targetP99Ms: 100 });
+      assert.equal(res.compliant, false);
+      assert.ok(res.violations.length > 0);
     });
   });
 });
