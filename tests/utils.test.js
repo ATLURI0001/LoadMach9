@@ -20,6 +20,7 @@ import {
   validatePayloadSize,
   evaluateSloCompliance,
   simulateLruHitRatio,
+  computeMemoryDelta,
   getMaxId,
   resetCacheForTesting,
 } from "../utils.js";
@@ -540,6 +541,21 @@ describe("LoadMach9 Utility & Performance Harness", () => {
       const res = simulateLruHitRatio(sequence, 2);
       assert.equal(res.hits, 2);
       assert.equal(res.hitRatio, 0.5);
+    });
+  });
+
+  describe("computeMemoryDelta", () => {
+    it("should compute memory differences between benchmarks", () => {
+      const initial = { heapUsed: 10000000, rss: 30000000 };
+      const final = { heapUsed: 25000000, rss: 45000000 };
+      const delta = computeMemoryDelta(initial, final, 20000000);
+      assert.equal(delta.heapDelta, 15000000);
+      assert.equal(delta.rssDelta, 15000000);
+      assert.equal(delta.heapGrowthExceeded, false);
+    });
+    it("should flag heap growth warning when delta exceeds threshold", () => {
+      const delta = computeMemoryDelta({ heapUsed: 1000 }, { heapUsed: 5000 }, 2000);
+      assert.equal(delta.heapGrowthExceeded, true);
     });
   });
 });
