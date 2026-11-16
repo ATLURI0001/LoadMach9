@@ -436,6 +436,24 @@ const simulateLruHitRatio = (accessSequence, capacity = 100) => {
     hitRatio: Number((hits / total).toFixed(4)),
   };
 };
+
+const computeMemoryDelta = (initialUsage = {}, finalUsage = {}, warningThresholdBytes = 52428800) => {
+  const init = initialUsage && typeof initialUsage === "object" ? initialUsage : {};
+  const fin = finalUsage && typeof finalUsage === "object" ? finalUsage : {};
+  const initHeap = init.heapUsed ?? 0;
+  const finalHeap = fin.heapUsed ?? 0;
+  const initRss = init.rss ?? 0;
+  const finalRss = fin.rss ?? 0;
+  const heapDelta = finalHeap - initHeap;
+  const rssDelta = finalRss - initRss;
+  const warning = heapDelta > warningThresholdBytes;
+  return {
+    heapDelta,
+    rssDelta,
+    heapGrowthExceeded: warning,
+    formattedHeapDelta: formatBytes(Math.abs(heapDelta)),
+  };
+};
 export {
   generateCode,
   generateBatchCodes,
@@ -456,6 +474,7 @@ export {
   validatePayloadSize,
   evaluateSloCompliance,
   simulateLruHitRatio,
+  computeMemoryDelta,
   getMaxId,
   resetCacheForTesting,
 };
