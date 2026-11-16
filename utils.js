@@ -326,6 +326,33 @@ const calculateAmdahlSpeedup = (concurrency = 1, parallelPortion = 0.95) => {
   };
 };
 
+const computeMovingAverage = (values, windowSize = 5) => {
+  if (!Array.isArray(values) || values.length === 0) return [];
+  const valid = values.filter((v) => typeof v === "number" && Number.isFinite(v));
+  const w = Number.isSafeInteger(windowSize) && windowSize > 0 ? Math.min(windowSize, valid.length) : 1;
+  if (valid.length === 0) return [];
+  const result = [];
+  for (let i = 0; i <= valid.length - w; i++) {
+    const sum = valid.slice(i, i + w).reduce((acc, curr) => acc + curr, 0);
+    result.push(Number((sum / w).toFixed(2)));
+  }
+  return result;
+};
+
+const computeEMA = (values, alpha = 0.3) => {
+  if (!Array.isArray(values) || values.length === 0) return [];
+  const valid = values.filter((v) => typeof v === "number" && Number.isFinite(v));
+  if (valid.length === 0) return [];
+  const a = typeof alpha === "number" && Number.isFinite(alpha) && alpha > 0 && alpha <= 1 ? alpha : 0.3;
+  let ema = valid[0];
+  const result = [Number(ema.toFixed(2))];
+  for (let i = 1; i < valid.length; i++) {
+    ema = a * valid[i] + (1 - a) * ema;
+    result.push(Number(ema.toFixed(2)));
+  }
+  return result;
+};
+
 export {
   generateCode,
   generateBatchCodes,
@@ -340,6 +367,8 @@ export {
   buildLatencyHistogram,
   computeJitter,
   calculateAmdahlSpeedup,
+  computeMovingAverage,
+  computeEMA,
   getMaxId,
   resetCacheForTesting,
 };
