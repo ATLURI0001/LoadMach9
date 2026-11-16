@@ -309,6 +309,23 @@ function resetCacheForTesting() {
   inFlightFetch = null;
 }
 
+const calculateAmdahlSpeedup = (concurrency = 1, parallelPortion = 0.95) => {
+  const s = typeof concurrency === "number" && Number.isFinite(concurrency) && concurrency > 0
+    ? concurrency
+    : 1;
+  const p = typeof parallelPortion === "number" && Number.isFinite(parallelPortion)
+    ? Math.max(0, Math.min(1, parallelPortion))
+    : 0.95;
+  const speedup = 1 / ((1 - p) + (p / s));
+  const efficiency = speedup / s;
+  return {
+    concurrency: s,
+    parallelPortion: p,
+    speedup: Number(speedup.toFixed(4)),
+    efficiency: Number(efficiency.toFixed(4)),
+  };
+};
+
 export {
   generateCode,
   generateBatchCodes,
@@ -322,6 +339,7 @@ export {
   DEFAULT_HISTOGRAM_BUCKETS,
   buildLatencyHistogram,
   computeJitter,
+  calculateAmdahlSpeedup,
   getMaxId,
   resetCacheForTesting,
 };

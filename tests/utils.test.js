@@ -13,6 +13,7 @@ import {
   DEFAULT_HISTOGRAM_BUCKETS,
   buildLatencyHistogram,
   computeJitter,
+  calculateAmdahlSpeedup,
   getMaxId,
   resetCacheForTesting,
 } from "../utils.js";
@@ -433,6 +434,28 @@ describe("LoadMach9 Utility & Performance Harness", () => {
       assert.deepEqual(computeJitter([]), { count: 0, meanJitter: 0, maxJitter: 0, variance: 0, stdDev: 0 });
       assert.deepEqual(computeJitter([42]), { count: 1, meanJitter: 0, maxJitter: 0, variance: 0, stdDev: 0 });
       assert.deepEqual(computeJitter(null), { count: 0, meanJitter: 0, maxJitter: 0, variance: 0, stdDev: 0 });
+    });
+  });
+
+  describe("calculateAmdahlSpeedup", () => {
+    it("should accurately compute Amdahl theoretical speedup and efficiency", () => {
+      const result = calculateAmdahlSpeedup(4, 0.9);
+      assert.equal(result.concurrency, 4);
+      assert.equal(result.parallelPortion, 0.9);
+      assert.equal(result.speedup, 3.0769);
+      assert.equal(result.efficiency, 0.7692);
+    });
+
+    it("should safely default on missing, invalid, or edge-case arguments", () => {
+      const def = calculateAmdahlSpeedup();
+      assert.equal(def.concurrency, 1);
+      assert.equal(def.speedup, 1);
+      assert.equal(def.efficiency, 1);
+
+      const invalid = calculateAmdahlSpeedup(-5, 2.5);
+      assert.equal(invalid.concurrency, 1);
+      assert.equal(invalid.parallelPortion, 1);
+      assert.equal(invalid.speedup, 1);
     });
   });
 });
