@@ -472,6 +472,25 @@ const generateAutocannonConfig = (opts = {}) => {
     headers: { "Content-Type": "application/json" },
   };
 };
+
+const calculateRpsZScore = (samples, currentRps) => {
+  if (!Array.isArray(samples) || samples.length < 2 || !Number.isFinite(currentRps)) {
+    return { mean: 0, stdDev: 0, zScore: 0, anomaly: false };
+  }
+  const valid = samples.filter((s) => typeof s === "number" && Number.isFinite(s));
+  if (valid.length < 2) return { mean: 0, stdDev: 0, zScore: 0, anomaly: false };
+  const mean = valid.reduce((a, b) => a + b, 0) / valid.length;
+  const variance = valid.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / (valid.length - 1);
+  const stdDev = Math.sqrt(variance);
+  if (stdDev === 0) return { mean, stdDev: 0, zScore: 0, anomaly: false };
+  const zScore = Number(((currentRps - mean) / stdDev).toFixed(2));
+  return {
+    mean: Number(mean.toFixed(2)),
+    stdDev: Number(stdDev.toFixed(2)),
+    zScore,
+    anomaly: Math.abs(zScore) >= 2,
+  };
+};
 export {
   generateCode,
   generateBatchCodes,
@@ -494,6 +513,7 @@ export {
   simulateLruHitRatio,
   computeMemoryDelta,
   generateAutocannonConfig,
+  calculateRpsZScore,
   getMaxId,
   resetCacheForTesting,
 };
