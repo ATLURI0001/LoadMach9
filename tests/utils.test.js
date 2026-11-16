@@ -16,6 +16,7 @@ import {
   calculateAmdahlSpeedup,
   computeMovingAverage,
   computeEMA,
+  generateBackoffSchedule,
   getMaxId,
   resetCacheForTesting,
 } from "../utils.js";
@@ -479,6 +480,20 @@ describe("LoadMach9 Utility & Performance Harness", () => {
     it("should handle empty or invalid arrays safely", () => {
       assert.deepEqual(computeMovingAverage([]), []);
       assert.deepEqual(computeEMA(null), []);
+    });
+  });
+
+  describe("generateBackoffSchedule", () => {
+    it("should generate backoff delays capped at maxMs", () => {
+      const res = generateBackoffSchedule({ baseMs: 50, maxMs: 400, factor: 2, maxRetries: 5, jitter: "none" });
+      assert.equal(res.retries, 5);
+      assert.deepEqual(res.schedule, [50, 100, 200, 400, 400]);
+    });
+    it("should handle invalid inputs with resilient defaults", () => {
+      const res = generateBackoffSchedule(null);
+      assert.equal(res.retries, 5);
+      assert.equal(res.baseMs, 100);
+      assert.equal(res.maxMs, 5000);
     });
   });
 });
