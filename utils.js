@@ -353,6 +353,21 @@ const computeEMA = (values, alpha = 0.3) => {
   return result;
 };
 
+
+const generateBackoffSchedule = (opts = {}) => {
+  const o = opts && typeof opts === "object" ? opts : {};
+  const base = Number.isFinite(o.baseMs) && o.baseMs > 0 ? o.baseMs : 100;
+  const max = Number.isFinite(o.maxMs) && o.maxMs >= base ? o.maxMs : 5000;
+  const f = Number.isFinite(o.factor) && o.factor >= 1 ? o.factor : 2;
+  const retries = Number.isSafeInteger(o.maxRetries) && o.maxRetries > 0 ? Math.min(o.maxRetries, 20) : 5;
+  const schedule = [];
+  for (let attempt = 0; attempt < retries; attempt++) {
+    const calculated = Math.min(max, base * Math.pow(f, attempt));
+    const delay = o.jitter === "full" ? Math.floor(Math.random() * calculated) : calculated;
+    schedule.push(delay);
+  }
+  return { baseMs: base, maxMs: max, retries, schedule };
+};
 export {
   generateCode,
   generateBatchCodes,
@@ -369,6 +384,7 @@ export {
   calculateAmdahlSpeedup,
   computeMovingAverage,
   computeEMA,
+  generateBackoffSchedule,
   getMaxId,
   resetCacheForTesting,
 };
