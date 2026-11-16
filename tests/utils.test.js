@@ -17,6 +17,7 @@ import {
   computeMovingAverage,
   computeEMA,
   generateBackoffSchedule,
+  validatePayloadSize,
   getMaxId,
   resetCacheForTesting,
 } from "../utils.js";
@@ -494,6 +495,18 @@ describe("LoadMach9 Utility & Performance Harness", () => {
       assert.equal(res.retries, 5);
       assert.equal(res.baseMs, 100);
       assert.equal(res.maxMs, 5000);
+    });
+  });
+
+  describe("validatePayloadSize", () => {
+    it("should validate allowed payload byte sizes correctly", () => {
+      assert.equal(validatePayloadSize(500, 1024).valid, true);
+      assert.equal(validatePayloadSize("2048", 1024).valid, false);
+      assert.equal(validatePayloadSize("2048", 1024).error, "PAYLOAD_TOO_LARGE");
+    });
+    it("should reject negative or unparseable inputs", () => {
+      assert.equal(validatePayloadSize(-50).valid, false);
+      assert.equal(validatePayloadSize("abc").error, "INVALID_LENGTH");
     });
   });
 });

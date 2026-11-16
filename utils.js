@@ -368,6 +368,18 @@ const generateBackoffSchedule = (opts = {}) => {
   }
   return { baseMs: base, maxMs: max, retries, schedule };
 };
+
+const validatePayloadSize = (contentLength, maxSizeBytes = 1048576) => {
+  const max = Number.isSafeInteger(maxSizeBytes) && maxSizeBytes > 0 ? maxSizeBytes : 1048576;
+  const len = typeof contentLength === "number" ? contentLength : Number.parseInt(String(contentLength).trim(), 10);
+  if (!Number.isFinite(len) || len < 0) {
+    return { valid: false, bytes: 0, maxBytes: max, error: "INVALID_LENGTH" };
+  }
+  if (len > max) {
+    return { valid: false, bytes: len, maxBytes: max, error: "PAYLOAD_TOO_LARGE" };
+  }
+  return { valid: true, bytes: len, maxBytes: max, error: null };
+};
 export {
   generateCode,
   generateBatchCodes,
@@ -385,6 +397,7 @@ export {
   computeMovingAverage,
   computeEMA,
   generateBackoffSchedule,
+  validatePayloadSize,
   getMaxId,
   resetCacheForTesting,
 };
