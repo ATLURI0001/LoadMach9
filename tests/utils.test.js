@@ -19,6 +19,7 @@ import {
   generateBackoffSchedule,
   validatePayloadSize,
   evaluateSloCompliance,
+  simulateLruHitRatio,
   getMaxId,
   resetCacheForTesting,
 } from "../utils.js";
@@ -523,6 +524,22 @@ describe("LoadMach9 Utility & Performance Harness", () => {
       const res = evaluateSloCompliance(latencies, { targetP95Ms: 50, targetP99Ms: 100 });
       assert.equal(res.compliant, false);
       assert.ok(res.violations.length > 0);
+    });
+  });
+
+  describe("simulateLruHitRatio", () => {
+    it("should accurately track hits, misses, and evictions for LRU sequence", () => {
+      const sequence = ["A", "B", "C", "A", "D", "B"];
+      const res = simulateLruHitRatio(sequence, 2);
+      assert.equal(res.total, 6);
+      assert.equal(res.misses, 6);
+      assert.equal(res.evictions, 4);
+    });
+    it("should recognize cache hits on frequent keys", () => {
+      const sequence = ["X", "X", "X", "Y"];
+      const res = simulateLruHitRatio(sequence, 2);
+      assert.equal(res.hits, 2);
+      assert.equal(res.hitRatio, 0.5);
     });
   });
 });
