@@ -14,6 +14,8 @@ import {
   buildLatencyHistogram,
   computeJitter,
   calculateAmdahlSpeedup,
+  computeMovingAverage,
+  computeEMA,
   getMaxId,
   resetCacheForTesting,
 } from "../utils.js";
@@ -456,6 +458,27 @@ describe("LoadMach9 Utility & Performance Harness", () => {
       assert.equal(invalid.concurrency, 1);
       assert.equal(invalid.parallelPortion, 1);
       assert.equal(invalid.speedup, 1);
+    });
+  });
+
+  describe("computeMovingAverage & computeEMA", () => {
+    it("should compute rolling window moving average correctly", () => {
+      const data = [10, 20, 30, 40, 50];
+      const result = computeMovingAverage(data, 3);
+      assert.deepEqual(result, [20, 30, 40]);
+    });
+
+    it("should compute exponential moving average with alpha correctly", () => {
+      const data = [10, 20, 30];
+      const result = computeEMA(data, 0.5);
+      assert.equal(result[0], 10);
+      assert.equal(result[1], 15);
+      assert.equal(result[2], 22.5);
+    });
+
+    it("should handle empty or invalid arrays safely", () => {
+      assert.deepEqual(computeMovingAverage([]), []);
+      assert.deepEqual(computeEMA(null), []);
     });
   });
 });
