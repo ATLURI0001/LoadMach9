@@ -24,6 +24,9 @@ import {
   generateAutocannonConfig,
   calculateRpsZScore,
   formatBenchmarkSummaryTable,
+  computeConfidenceInterval,
+  filterOutliersIQR,
+  sanitizeBenchmarkMetrics,
   getMaxId,
   resetCacheForTesting,
 } from "../utils.js";
@@ -602,6 +605,69 @@ describe("LoadMach9 Utility & Performance Harness", () => {
     it("should provide fallback table when records are empty", () => {
       const md = formatBenchmarkSummaryTable([]);
       assert.ok(md.includes("| N/A | 0 | 0ms | 0 |"));
+    });
+  });
+
+  describe("computeConfidenceInterval", () => {
+    it("should compute mean, margin of error, and confidence bounds correctly", () => {
+      const latencies = [10.2, 10.5, 9.8, 10.1, 10.4, 9.9, 10.3, 10.0];
+      const ci = computeConfidenceInterval(latencies, 0.95);
+      assert.ok(ci.mean > 10.0 && ci.mean < 10.3);
+      assert.ok(ci.marginOfError > 0 && ci.marginOfError < 0.5);
+      assert.ok(ci.lowerBound < ci.mean);
+      assert.ok(ci.upperBound > ci.mean);
+      assert.equal(ci.validSamples, 8);
+    });
+    it("should handle insufficient samples or invalid data safely", () => {
+      const emptyCi = computeConfidenceInterval([5]);
+      assert.equal(emptyCi.mean, 5);
+      assert.equal(emptyCi.validSamples, 1);
+      assert.equal(emptyCi.marginOfError, 0);
+
+      const invalidCi = computeConfidenceInterval(null);
+      assert.equal(invalidCi.mean, 0);
+      assert.equal(invalidCi.validSamples, 0);
+    });
+  });
+
+  describe("filterOutliersIQR", () => {
+    it("should isolate high latency spikes using IQR boundaries", () => {
+      const samples = [10, 11, 10.5, 11.2, 10.8, 10.3, 11.5, 100]; // 100 is outlier
+      const res = filterOutliersIQR(samples, 1.5);
+      assert.ok(res.outliers.includes(100));
+      assert.equal(res.cleanSamples.includes(100), false);
+      assert.ok(res.iqr > 0);
+      assert.ok(res.bounds[1] < 100);
+    });
+    it("should safely return input when samples are insufficient", () => {
+      const res = filterOutliersIQR([1, 2]);
+      assert.equal(res.outliers.length, 0);
+    });
+  });
+
+  describe("sanitizeBenchmarkMetrics", () => {
+    it("should sanitize valid metric payloads", () => {
+      const metrics = sanitizeBenchmarkMetrics({
+        rps: 12500,
+        latencyMean: 4.5,
+        latencyP99: 12.2,
+        requestsTotal: 50000,
+        errorsTotal: 0,
+        throughputBytes: 1048576,
+      });
+      assert.equal(metrics.rps, 12500);
+      assert.equal(metrics.latencyMean, 4.5);
+      assert.equal(metrics.requestsTotal, 50000);
+    });
+    it("should sanitize negative or unparseable fields to 0", () => {
+      const metrics = sanitizeBenchmarkMetrics({
+        rps: -50,
+        latencyMean: NaN,
+        errorsTotal: "none",
+      });
+      assert.equal(metrics.rps, 0);
+      assert.equal(metrics.latencyMean, 0);
+      assert.equal(metrics.errorsTotal, 0);
     });
   });
 });
