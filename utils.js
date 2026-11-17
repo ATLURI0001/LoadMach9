@@ -506,6 +506,87 @@ const formatBenchmarkSummaryTable = (records) => {
   });
   return [headers, ...rows].join("\n");
 };
+
+const computeConfidenceInterval = (samples, confidenceLevel = 0.95) => {
+  if (!Array.isArray(samples)) {
+    return { mean: 0, marginOfError: 0, lowerBound: 0, upperBound: 0, validSamples: 0 };
+  }
+  const valid = samples.filter((s) => typeof s === "number" && Number.isFinite(s) && s >= 0);
+  const n = valid.length;
+  if (n < 2) {
+    const single = n === 1 ? valid[0] : 0;
+    return { mean: single, marginOfError: 0, lowerBound: single, upperBound: single, validSamples: n };
+  }
+
+  const mean = valid.reduce((a, b) => a + b, 0) / n;
+  const variance = valid.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / (n - 1);
+  const stdDev = Math.sqrt(variance);
+  const se = stdDev / Math.sqrt(n);
+
+  // Standard z-scores for common levels: 90% -> 1.645, 95% -> 1.96, 99% -> 2.576
+  const z = confidenceLevel >= 0.99 ? 2.576 : confidenceLevel >= 0.95 ? 1.96 : 1.645;
+  const moe = Number((z * se).toFixed(3));
+  const lower = Number(Math.max(0, mean - moe).toFixed(3));
+  const upper = Number((mean + moe).toFixed(3));
+
+  return {
+    mean: Number(mean.toFixed(3)),
+    marginOfError: moe,
+    lowerBound: lower,
+    upperBound: upper,
+    validSamples: n,
+  };
+};
+
+const filterOutliersIQR = (samples, factor = 1.5) => {
+  if (!Array.isArray(samples) || samples.length < 4) {
+    return { cleanSamples: Array.isArray(samples) ? [...samples] : [], outliers: [], iqr: 0, bounds: [0, 0] };
+  }
+  const valid = samples.filter((s) => typeof s === "number" && Number.isFinite(s)).sort((a, b) => a - b);
+  const n = valid.length;
+  if (n < 4) {
+    return { cleanSamples: valid, outliers: [], iqr: 0, bounds: [0, 0] };
+  }
+
+  const q1 = valid[Math.floor(n * 0.25)];
+  const q3 = valid[Math.floor(n * 0.75)];
+  const iqr = Number((q3 - q1).toFixed(3));
+  const lower = Number((q1 - factor * iqr).toFixed(3));
+  const upper = Number((q3 + factor * iqr).toFixed(3));
+
+  const cleanSamples = [];
+  const outliers = [];
+  for (const s of valid) {
+    if (s >= lower && s <= upper) {
+      cleanSamples.push(s);
+    } else {
+      outliers.push(s);
+    }
+  }
+
+  return {
+    cleanSamples,
+    outliers,
+    iqr,
+    bounds: [lower, upper],
+  };
+};
+
+const sanitizeBenchmarkMetrics = (raw = {}) => {
+  const o = raw && typeof raw === "object" ? raw : {};
+  const cleanNumber = (val, fallback = 0) =>
+    typeof val === "number" && Number.isFinite(val) && val >= 0 ? val : fallback;
+
+  return {
+    rps: cleanNumber(o.rps),
+    latencyMean: cleanNumber(o.latencyMean),
+    latencyP99: cleanNumber(o.latencyP99),
+    requestsTotal: cleanNumber(o.requestsTotal),
+    errorsTotal: cleanNumber(o.errorsTotal),
+    throughputBytes: cleanNumber(o.throughputBytes),
+  };
+};
+
 export {
   generateCode,
   generateBatchCodes,
@@ -530,6 +611,9 @@ export {
   generateAutocannonConfig,
   calculateRpsZScore,
   formatBenchmarkSummaryTable,
+  computeConfidenceInterval,
+  filterOutliersIQR,
+  sanitizeBenchmarkMetrics,
   getMaxId,
   resetCacheForTesting,
 };
